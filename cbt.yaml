@@ -1,0 +1,45 @@
+cluster:
+  user: "root"
+  head: "node1"
+  clients: ["client1", "client2", "client3", "client4", "client5"]
+  osds: ["node1", "node2", "node3", "node4", "node5"]
+  mons:
+   node1:
+     node1: "192.168.100.101:6789"
+  mgrs:
+    node1:
+     node1: '192.168.100.101:6789'
+  osds_per_node: 16
+  fs: bluefs
+  mkfs_opts: '-f -i size=2048'
+  mount_opts: '-o inode64,noatime,logbsize=256k'
+  conf_file: '/etc/ceph/ceph.conf'
+  use_existing: True
+  rebuild_every_test: False
+  clusterid: "ceph"
+  iterations: 1
+  tmp_dir: "/tmp/cbt"
+  pool_profiles:
+    3rep:
+      pg_size: 1024
+      pgp_size: 1024
+      replication: 3
+benchmarks:
+  librbdfio:
+    time_based: True
+    time: 300
+    ramp: 300
+    vol_size: 143360
+    mode: ['randrw']
+    rwmixread: [0, 70, 100]
+    op_size: [4096]
+    numjobs: 1
+    procs_per_volume: [1]
+    volumes_per_client: [10]
+    use_existing_volumes: True
+    iodepth: [1, 2, 4, 8, 16, 32]
+    osd_ra: [4096]
+    norandommap: True
+    cmd_path: '/usr/local/bin/fio'
+    pool_profile: '3rep'
+    log_avg_msec: 250
