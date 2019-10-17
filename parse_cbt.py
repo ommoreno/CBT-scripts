@@ -12,6 +12,7 @@ import sys
 import math
 import argparse
 from operator import itemgetter
+import numpy as np
 
 def parse_args():
 	parser = argparse.ArgumentParser(description='Parse CBT output directory.')
@@ -27,7 +28,7 @@ def convert_unit(unit):
 		return 1
 	elif(unit == 'KB/s' or unit == 'kB/s' or unit == 'msec'):
 		return 1000
-	elif(unit == 'MB/s' or unit == 'usec'):
+	elif(unit == 'MB/s' or unit == 'MB/sec' or unit == 'usec'):
 		return 1000000
 	elif(unit == 'GB/s' or unit == 'nsec'):
 		return 1000000000
@@ -66,17 +67,17 @@ class TestRun(object):
 						for subdir in path.split('/'):
 							if re.match('\d+', subdir):
 								Iteration = subdir
-							elif re.match('LibrbdFio', subdir):
+							elif re.match('LibrbdFio|Radosbench', subdir):
 								Benchmark = subdir
 							elif re.match('osd_ra-\d+', subdir):
 								OSD_RA = subdir.split('-')[1]
 							elif re.match('op_size-\d+', subdir):
 								IOSize = subdir.split('-')[1]
-							elif re.match('concurrent_procs-\d+', subdir):
+							elif re.match('concurrent_procs-\d+|concurrent_ops-\d+', subdir):
 								Procs = subdir.split('-')[1]
 							elif re.match('iodepth-\d+', subdir):
 								IODepth = subdir.split('-')[1]
-							elif re.match('randrw|rw', subdir):
+							elif re.match('randrw|rw|readwrite|write|seq', subdir):
 								Pattern = subdir
 							elif re.match('readmix-\d+', subdir):
 								Mix = subdir.split('-')[1]
@@ -95,11 +96,15 @@ class TestRun(object):
 	def print_testRun(self):
 
 		#self.tests = sorted(self.tests, key=itemgetter('Benchmark', 'Iteration', 'Procs', 'IOSize', 'Mix', 'IODepth'))
-		self.tests.sort(key=lambda x: (x.benchmark, x.iteration, x.procs, x.iosize, x.mix, x.iodepth))
+#		self.tests.sort(key=lambda x: (x.benchmark, x.iteration, x.procs, x.iosize, x.mix, x.iodepth))
+		self.tests.sort(key=lambda x: (x.benchmark, x.mix, x.procs, x.iosize, x.iteration, x.iodepth))		
 
 		if self.ctx.csv:
 			if self.ctx.pctiles:
-				sys.stdout.write("Benchmark,Iteration,Procs,IOSize,Pattern,Mix,IODepth,Bandwidth(KB/s),IOPS,AvgLat(ms),MinLat(ms),%s" % (self.ctx.pctiles))
+				if self.ctx.split:
+					sys.stdout.write("Benchmark,Iteration,Procs,IOSize,Pattern,Mix,IODepth,Bandwidth(KB/s),IOPS,readAvgLat(ms),writeAvgLat(ms),MinLat(ms),%s" % (self.ctx.pctiles))
+				else:
+					sys.stdout.write("Benchmark,Iteration,Procs,IOSize,Pattern,Mix,IODepth,Bandwidth(KB/s),IOPS,AvgLat(ms),MinLat(ms),%s" % (self.ctx.pctiles))
 				print ",MaxLat(ms)"
 			else:
 				print "Benchmark,Iteration,Procs,IOSize,Pattern,Mix,IODepth,Bandwidth(KB/s),IOPS,AvgLat(ms),MinLat(ms),MaxLat(ms)"
@@ -136,48 +141,70 @@ class Test(object):
 		self.iops = 0
 		self.bw = 0
 		self.avglat = 0
+		self.readavglat = 0
+		self.writeavglat = 0
 		self.minlat = 0
 		self.maxlat = 0
 		self.pctiles = {}
 		self.outputs = []
+		self.clients = 0
 
 	def add_output(self, fn):
-		output = Output(self.ctx, fn)
+		output = Output(self.ctx, self.benchmark, fn)
 		self.outputs.append(output)
 
 	def calculate_results(self):
-		for output in self.outputs:
-			self.iops += output.iops
-			self.avglat += output.iops * output.avglat
-			self.bw += output.bw
-		if self.iops > 0:
-			self.avglat /= self.iops
-		#self.minlat = min([item.minlat for item in self.outputs] or ['empty list'])
-		self.minlat = min([item.minlat for item in self.outputs])
-		if self.minlat == 'empty list':
-			self.minlat = 0
-		self.maxlat = min([item.maxlat for item in self.outputs])
-		if self.maxlat == 'empty list':
-			self.maxlat = 0
-		if self.ctx.pctiles:
-			for bucket in self.ctx.pctiles.split(','):
-				self.pctiles[bucket] = get_percentile([item.pctiles[bucket] for item in self.outputs], float(bucket)/100)
+		if self.benchmark == "LibrbdFio":
+
+			for output in self.outputs:
+				if output.iops > 0:
+					self.clients += 1
+				self.iops += output.iops
+				self.avglat += output.iops * output.avglat
+				self.bw += output.bw
+			if self.iops > 0:
+				self.avglat /= self.iops
+			self.readavglat = np.ma.average(list(item.avgreadlat for item in self.outputs))
+			self.writeavglat = np.ma.average(list(item.avgwritelat for item in self.outputs))
+			#self.minlat = min([item.minlat for item in self.outputs] or ['empty list'])
+			self.minlat = min([item.minlat for item in self.outputs])
+			if self.minlat == 'empty list':
+				self.minlat = 0
+			self.maxlat = min([item.maxlat for item in self.outputs])
+			if self.maxlat == 'empty list':
+				self.maxlat = 0
+			if self.ctx.pctiles:
+				for bucket in self.ctx.pctiles.split(','):
+					self.pctiles[bucket] = get_percentile([item.pctiles[bucket] for item in self.outputs], float(bucket)/100)
+
+                elif self.benchmark == "Radosbench":
+                        for output in self.outputs:
+                                if output.bw > 0:
+                                        self.clients += 1
+                                self.bw += output.bw
+
 	
 	def print_test(self):
 		self.calculate_results()
 		if self.ctx.csv:
 			if self.ctx.pctiles:
-				sys.stdout.write("%s,%s,%s,%s,%s,%s,%s,%.2f,%d,%.2f,%.2f" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.avglat, self.minlat))
-				for bucket in self.pctiles.keys():
+				if self.ctx.split:
+					sys.stdout.write("%s,%s,%s,%s,%s,%s,%s,%.2f,%d,%.2f,%.2f,%.2f" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.readavglat, self.writeavglat, self.minlat))
+				else:
+					sys.stdout.write("%s,%s,%s,%s,%s,%s,%s,%.2f,%d,%.2f,%.2f" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.avglat, self.minlat))
+				#for bucket in self.pctiles.keys():
+				for bucket in self.ctx.pctiles.split(','):
 					sys.stdout.write(",%.2f" % self.pctiles[bucket])
-				print ",%.2f" % (self.maxlat)
+				sys.stdout.write(",%.2f" % (self.maxlat))
+				print ",%s" % (self.clients)
 			else:
 				# print test results in csv format
-				print "%s,%s,%s,%s,%s,%s,%s,%.2f,%d,%.2f,%.2f,%.2f" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.avglat, self.minlat, self.maxlat)
+				print "%s,%s,%s,%s,%s,%s,%s,%.2f,%d,%.2f,%.2f,%.2f,%s" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.avglat, self.minlat, self.maxlat, self.clients)
 		else:
 			if self.ctx.pctiles:
 				sys.stdout.write("%s | %9s | %5s | %8s | %-7s | %-3s | %-7s | % 10.0f      | %4d | %7.2f | %7.2f" % (self.benchmark, self.iteration, self.procs, self.iosize, self.pattern, self.mix, self.iodepth, self.bw, self.iops, self.avglat, self.minlat))
-				for bucket in self.pctiles.keys():
+				#for bucket in self.pctiles.keys():
+				for bucket in self.ctx.pctiles.split(','):
 					sys.stdout.write(" | %.2f" % self.pctiles[bucket])
 				print " | %.2f" % (self.maxlat)
 			
@@ -186,18 +213,37 @@ class Test(object):
 			
 
 class Output(object):
-	def __init__(self, ctx, fn):
+	def __init__(self, ctx, benchmark, fn):
 		self.ctx = ctx
+		self.benchmark = benchmark
 		self.iops = None
 		self.bw = None
 		self.avglat = None
+		self.avgreadlat = None
+		self.avgwritelat = None
 		self.minlat = 0
 		self.maxlat = None
 		self.buckets = ['50.00','80.00','90.00','99.00']
 		self.pctiles = {}
 		if self.ctx.pctiles:
 			self.buckets = self.ctx.pctiles.split(',')
-		self.parseFIO(fn)
+		if self.benchmark == "LibrbdFio":
+			self.parseFIO(fn)
+		elif self.benchmark == "Radosbench":
+			self.parseRB(fn)
+
+	def parseRB(self, fn):
+		time = 0
+			
+		f = open(fn, 'r')
+		for line in f:
+			
+			m = re.match('Total time run:\s+(?P<time>\d+[\.\d]*)', line)
+			if m:
+				time = m.groupdict()['time']
+			m = re.match('Bandwidth \((?P<bw_unit>\S+)\):\s+(?P<bw>\d+[\.\d]*)', line)
+			if m:
+				self.bw = float(m.groupdict()['bw']) * convert_unit(m.groupdict()['bw_unit']) / 1000
 
 	def parseFIO(self, fn):
 		iothreads = []
@@ -257,6 +303,8 @@ class Output(object):
 
 		self.iops = sum(item['read_iops'] for item in iothreads) + sum(item['write_iops'] for item in iothreads)
 		self.bw = sum(item['read_bw'] for item in iothreads) + sum(item['write_bw'] for item in iothreads)
+		self.avgwritelat = np.ma.average(list(item['write_avglat'] for item in iothreads), weights=list(item['write_iops'] for item in iothreads))
+		self.avgreadlat = np.ma.average(list(item['read_avglat'] for item in iothreads), weights=list(item['read_iops'] for item in iothreads))
 
 		for iothread in iothreads:
 			if totaliops == 0:
