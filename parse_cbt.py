@@ -170,7 +170,7 @@ class Test(object):
 			self.minlat = min([item.minlat for item in self.outputs])
 			if self.minlat == 'empty list':
 				self.minlat = 0
-			self.maxlat = min([item.maxlat for item in self.outputs])
+			self.maxlat = max([item.maxlat for item in self.outputs])
 			if self.maxlat == 'empty list':
 				self.maxlat = 0
 			if self.ctx.pctiles:
