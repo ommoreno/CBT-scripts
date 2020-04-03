@@ -70,7 +70,7 @@ class Test(object):
         self.iops = 0
         self.bw = 0
         self.lat = {'avg': 0, 'min': 0, 'max': 0}
-        if self.metadata['benchmark'] == 'fio' or self.metadata['benchmark'] == 'librbdfio':
+        if self.metadata['benchmark'] == 'fio':
             self.read_lat = {'avg': 0, 'min': 0, 'max': 0}
             self.write_lat = {'avg': 0, 'min': 0, 'max': 0}
             self.read_iops = 0
@@ -86,7 +86,7 @@ class Test(object):
         self.clients = len(self.outputs)
         self.iops = sum([item.iops for item in self.outputs])
         self.bw = sum([item.bw for item in self.outputs])
-        if self.metadata['benchmark'] == 'fio' or self.metadata['benchmark'] == 'librbdfio':
+        if self.metadata['benchmark'] == 'fio':
             self.read_iops = sum([item.read_iops for item in self.outputs])
             self.write_iops = sum([item.write_iops for item in self.outputs])
             self.read_bw = sum([item.read_bw for item in self.outputs])
@@ -157,7 +157,7 @@ class Output(object):
         self.iops = 0
         self.bw = 0
         self.lat = {'avg': 0, 'min': 0, 'max': 0}
-        if self.benchmark == 'fio' or self.metadata['benchmark'] == 'librbdfio':
+        if self.benchmark == 'fio':
             self.read_lat = {'avg': 0, 'min': 0, 'max': 0}
             self.write_lat = {'avg': 0, 'min': 0, 'max': 0}
             self.read_iops = 0
