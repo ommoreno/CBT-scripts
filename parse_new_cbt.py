@@ -3,7 +3,7 @@
 # Parse CBT output directory and return a summary of test statistics
 #
 # Orlando Moreno
-# 03-04-2020
+# 07-30-2020
 
 import os
 import pprint
@@ -94,30 +94,51 @@ class Test(object):
 
             if not self.read_iops == 0:
                 for key in self.outputs[0].read_lat.keys():
-                    self.read_lat[key] = np.ma.average([item.read_lat[key] for item in self.outputs], weights=[item.read_iops for item in self.outputs])
-                    self.read_lat[key] /= 1000000
+                    try:
+                        self.read_lat[key] = np.ma.average([item.read_lat[key] for item in self.outputs], weights=[item.read_iops for item in self.outputs])
+                        self.read_lat[key] /= 1000000
+                    except KeyError:
+                        continue
             else:
                 for key in self.outputs[0].write_lat.keys():
-                    self.lat[key] = np.ma.average([item.write_lat[key] for item in self.outputs], weights=[item.write_iops for item in self.outputs])
-                    self.read_lat[key] = 0
-                    self.lat[key] /= 1000000
+                    try:
+                        self.lat[key] = np.ma.average([item.write_lat[key] for item in self.outputs], weights=[item.write_iops for item in self.outputs])
+                        self.read_lat[key] = 0
+                        self.lat[key] /= 1000000
+                    except KeyError:
+                        continue
+
             if not self.write_iops == 0:
                 for key in self.outputs[0].write_lat.keys():
-                    self.write_lat[key] = np.ma.average([item.write_lat[key] for item in self.outputs], weights=[item.write_iops for item in self.outputs])
-                    self.write_lat[key] /= 1000000
+                    try:
+                        self.write_lat[key] = np.ma.average([item.write_lat[key] for item in self.outputs], weights=[item.write_iops for item in self.outputs])
+                        self.write_lat[key] /= 1000000
+                    except KeyError:
+                        continue
             else:
                 for key in self.outputs[0].read_lat.keys():
-                    self.lat[key] = np.ma.average([item.read_lat[key] for item in self.outputs], weights=[item.read_iops for item in self.outputs])
-                    self.write_lat[key] = 0
-                    self.lat[key] /= 1000000
+                    try:
+                        self.lat[key] = np.ma.average([item.read_lat[key] for item in self.outputs], weights=[item.read_iops for item in self.outputs])
+                        self.write_lat[key] = 0
+                        self.lat[key] /= 1000000
+                    except KeyError:
+                        continue
+
             if not self.read_iops == 0 and not self.write_iops == 0:
                 for key in self.outputs[0].read_lat.keys():
-                    self.lat[key] = np.ma.average([self.read_lat[key], self.write_lat[key]], weights=[self.read_iops, self.write_iops])
+                    try:
+                        self.lat[key] = np.ma.average([self.read_lat[key], self.write_lat[key]], weights=[self.read_iops, self.write_iops])
+                    except KeyError:
+                        continue
+
         elif self.metadata['benchmark'] == 'Radosbench':
             if not self.iops == 0:
                 for key in self.outputs[0].lat.keys():
-                    self.lat[key] = np.ma.average([item.lat[key] for item in self.outputs], weights=[item.iops for item in self.outputs])
-                    self.lat[key] /= 1000000
+                    try:
+                        self.lat[key] = np.ma.average([item.lat[key] for item in self.outputs], weights=[item.iops for item in self.outputs])
+                        self.lat[key] /= 1000000
+                    except KeyError:
+                        continue
         else:
             print('Unknown benchmark!')
 
@@ -200,10 +221,12 @@ class Output(object):
             write_job_lat['avg'].append(job['write'][lat_key]['mean'])
             write_job_lat['min'].append(job['write'][lat_key]['min'])
             write_job_lat['max'].append(job['write'][lat_key]['max'])
-            for pct in job['read'][clat_key]['percentile'].keys():
-                read_job_lat[round(float(pct), 2)].append(job['read'][clat_key]['percentile'][pct])
-            for pct in job['write'][clat_key]['percentile'].keys():
-                write_job_lat[round(float(pct), 2)].append(job['write'][clat_key]['percentile'][pct])
+            if 'percentile' in job['read'][clat_key]:
+                for pct in job['read'][clat_key]['percentile'].keys():
+                    read_job_lat[round(float(pct), 2)].append(job['read'][clat_key]['percentile'][pct])
+            if 'percentile' in job['write'][clat_key]:           
+                for pct in job['write'][clat_key]['percentile'].keys():
+                    write_job_lat[round(float(pct), 2)].append(job['write'][clat_key]['percentile'][pct])
 
         self.read_iops = sum(read_job_iops)
         self.write_iops = sum(write_job_iops)
