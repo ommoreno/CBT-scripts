@@ -64,6 +64,10 @@ class Test(object):
     def __init__(self, ctx, metadata, hashid):
         self.ctx = ctx
         self.metadata = metadata
+        if re.match('write|randwrite', self.metadata['mode']):
+            self.metadata['rwmixread'] = 0
+        elif re.match('read|randread', self.metadata['mode']):
+            self.metadata['rwmixread'] = 100
         self.hashid = hashid
         self.outputs = []
         self.clients = 0
@@ -84,6 +88,9 @@ class Test(object):
 
     def calculate_results(self):
         self.clients = len(self.outputs)
+        if self.clients == 0:
+            print('Test %s has no json outputs' % self.hashid)
+            return
         self.iops = sum([item.iops for item in self.outputs])
         self.bw = sum([item.bw for item in self.outputs])
         if self.metadata['benchmark'] == 'fio' or self.metadata['benchmark'] == 'librbdfio':
@@ -150,14 +157,20 @@ class Test(object):
                     self.metadata['iodepth'], self.bw, self.read_iops, self.write_iops, self.read_lat['avg'], self.write_lat['avg'],
                     self.read_lat['min'], self.write_lat['min']))
                 for bucket in self.ctx.pctiles.split(','):
-                    sys.stdout.write(', %.2f, %.2f' % (self.read_lat[float(bucket)], self.write_lat[float(bucket)]))
+                    try:
+                        sys.stdout.write(', %.2f, %.2f' % (self.read_lat[float(bucket)], self.write_lat[float(bucket)]))
+                    except KeyError:
+                        continue
                 print(', %.2f, %.2f' % (self.read_lat['max'], self.write_lat['max']))
             else:
                 sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
             self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'], 
             self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min']))
                 for bucket in self.ctx.pctiles.split(','):
-                    sys.stdout.write(', %.2f' % self.lat[float(bucket)])
+                    try:
+                        sys.stdout.write(', %.2f' % self.lat[float(bucket)])
+                    except KeyError:
+                        continue
                 print(', %.2f' % self.lat['max'])
         else:
             if self.ctx.split:
@@ -167,9 +180,9 @@ class Test(object):
                 self.read_lat['min'], self.write_lat['min']))
                 print(', %.2f, %.2f' % (self.read_lat['max'], self.write_lat['max']))
             else:
-                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
+                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f, %s' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
             self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'],
-            self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min']))
+            self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min'], self.hashid))
                 print(', %.2f' % self.lat['max'])
                 
 class Output(object):
@@ -310,7 +323,7 @@ if __name__ == '__main__':
                                 #Found corrupted/empty JSON file
                                 print('%s is empty' % json_file)
                     # Calculate test statistics from outputs
-                    tests[testIndex].calculate_results();
+                    tests[testIndex].calculate_results()
 
         tests.sort(key=lambda x: (x.metadata['benchmark'], x.metadata['rwmixread'], x.clients, x.metadata['op_size'], x.metadata['iteration'], x.metadata['iodepth']))
 
@@ -325,5 +338,6 @@ if __name__ == '__main__':
             c.execute('INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', values)
             conn.commit()
         conn.close()
+
 
 
