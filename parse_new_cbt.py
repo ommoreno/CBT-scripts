@@ -42,27 +42,28 @@ def convert_unit(unit):
 def print_header(ctx):
     if ctx.pctiles:
         if ctx.split:
-            sys.stdout.write('Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), readIOPS, writeIOPS, readAvgLat(ms), writeAvgLat(ms), readMinLat(ms), writeMinLat(ms)')
+            sys.stdout.write('ArchiveDir, HashID, Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), readIOPS, writeIOPS, readAvgLat(ms), writeAvgLat(ms), readMinLat(ms), writeMinLat(ms)')
             for bucket in ctx.pctiles.split(','):
                 sys.stdout.write(', read%spctLat(ms), write%spctLat(ms)' % (bucket, bucket))
             print(', readMaxLat(ms), writeMaxLat(ms)')
         else:
-            sys.stdout.write('Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), IOPS, avgLat(ms), minLat(ms)')
+            sys.stdout.write('ArchiveDir, HashID, Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), IOPS, avgLat(ms), minLat(ms)')
             for bucket in ctx.pctiles.split(','):
                 sys.stdout.write(', %spctLat(ms)' % bucket)
             print(', maxLat(ms)')
     else:
         if ctx.split:
-            sys.stdout.write('Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), readIOPS, writeIOPS, readAvgLat(ms), writeAvgLat(ms), readMinLat(ms), writeMinLat(ms)')
+            sys.stdout.write('ArchiveDir, HashID, Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), readIOPS, writeIOPS, readAvgLat(ms), writeAvgLat(ms), readMinLat(ms), writeMinLat(ms)')
             print(', readMaxLat(ms), writeMaxLat(ms)')
         else:
-            sys.stdout.write('Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), IOPS, avgLat(ms), minLat(ms)')
+            sys.stdout.write('ArchiveDir, HashID, Benchmark, Iteration, Procs, IOSize, Pattern, Mix, IODepth, Bandwidth(KB/s), IOPS, avgLat(ms), minLat(ms)')
             print(', maxLat(ms)')
 
 # Test class contains the list of output objects (FIO or RadosBench) and the summarized results of those outputs
 class Test(object):
-    def __init__(self, ctx, metadata, hashid):
+    def __init__(self, ctx, dn, metadata, hashid):
         self.ctx = ctx
+        self.dn = dn
         self.metadata = metadata
         if re.match('write|randwrite', self.metadata['mode']):
             self.metadata['rwmixread'] = 0
@@ -152,7 +153,7 @@ class Test(object):
     def printTest(self):
         if self.ctx.pctiles:
             if self.ctx.split:
-                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %.2f, %.2f, %.2f, %.2f' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
+                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %.2f, %.2f, %.2f, %.2f' % (self.dn, self.hashid, self.metadata['benchmark'], self.metadata['iteration'], self.clients,
                     self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'],
                     self.metadata['iodepth'], self.bw, self.read_iops, self.write_iops, self.read_lat['avg'], self.write_lat['avg'],
                     self.read_lat['min'], self.write_lat['min']))
@@ -163,9 +164,10 @@ class Test(object):
                         continue
                 print(', %.2f, %.2f' % (self.read_lat['max'], self.write_lat['max']))
             else:
-                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
+                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f' % (self.dn, self.hashid, self.metadata['benchmark'], self.metadata['iteration'], self.clients,
             self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'], 
             self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min']))
+#                print(self.lat.keys())
                 for bucket in self.ctx.pctiles.split(','):
                     try:
                         sys.stdout.write(', %.2f' % self.lat[float(bucket)])
@@ -174,20 +176,21 @@ class Test(object):
                 print(', %.2f' % self.lat['max'])
         else:
             if self.ctx.split:
-                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %.2f, %.2f, %.2f, %.2f' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
+                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %d, %.2f, %.2f, %.2f, %.2f' % (self.dn, self.hashid, self.metadata['benchmark'], self.metadata['iteration'], self.clients,
                 self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'],
                 self.metadata['iodepth'], self.bw, self.read_iops, self.write_iops, self.read_lat['avg'], self.write_lat['avg'],
                 self.read_lat['min'], self.write_lat['min']))
                 print(', %.2f, %.2f' % (self.read_lat['max'], self.write_lat['max']))
             else:
-                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f, %s' % (self.metadata['benchmark'], self.metadata['iteration'], self.clients,
+                sys.stdout.write('%s, %s, %s, %s, %s, %s, %s, %s, %s, %d, %d, %.2f, %.2f' % (self.dn, self.hashid, self.metadata['benchmark'], self.metadata['iteration'], self.clients,
             self.metadata['op_size'], self.metadata['mode'], self.metadata['rwmixread'],
-            self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min'], self.hashid))
+            self.metadata['iodepth'], self.bw, self.iops, self.lat['avg'], self.lat['min']))
                 print(', %.2f' % self.lat['max'])
                 
 class Output(object):
     def __init__(self, benchmark, fn):
         self.benchmark = benchmark
+        self.fn = fn
         self.iops = 0
         self.bw = 0
         self.lat = {'avg': 0, 'min': 0, 'max': 0}
@@ -269,11 +272,10 @@ if __name__ == '__main__':
     ctx = parse_args()
 
     cbtConfig = {}
-    testIndex = -1
 
     sqlite_file = '/tmp/db.sqlite'
-    conn = sqlite3.connect(sqlite_file)
-    c = conn.cursor()
+    #conn = sqlite3.connect(sqlite_file)
+    #c = conn.cursor()
     q = 'CREATE TABLE if not exists results ('
     values = []
     FORMAT = ['hash', 'testname', 'benchmark', 'iteration', 'procs', 'iosize', 'pattern', 'mix', 'iodepth', 'bandwidth', 'iops', 'avglat']
@@ -282,13 +284,16 @@ if __name__ == '__main__':
     for key in FORMAT:
         values.append('%s %s' % (key,TYPES[key]))
     q += ', '.join(values)+', PRIMARY KEY (hash, testname))'
-    c.execute(q)
-    conn.commit()
+    #c.execute(q)
+    #conn.commit()
+
+    print_header(ctx)
 
     # Iterate through each given archive directory
     for dn in ctx.DIR:
         # List of test objects in CBT archive folder
         tests = []
+        testIndex = -1
 
         # Walk through given directory
         for path, dirs, files in os.walk(dn):
@@ -307,7 +312,7 @@ if __name__ == '__main__':
                         for subdir in path.split('/'):
                             if re.match('id', subdir):
                                 hashid = subdir
-                        tests.append(Test(ctx, benchConfig['cluster'], hashid))
+                        tests.append(Test(ctx, dn, benchConfig['cluster'], hashid))
                         testIndex+=1
 
                     #Gather all output files in this test directory
@@ -326,18 +331,18 @@ if __name__ == '__main__':
                     tests[testIndex].calculate_results()
 
         tests.sort(key=lambda x: (x.metadata['benchmark'], x.metadata['rwmixread'], x.clients, x.metadata['op_size'], x.metadata['iteration'], x.metadata['iodepth']))
+#        tests.sort(key=lambda x: (x.metadata['benchmark'], x.metadata['rwmixread'], x.clients, x.metadata['op_size'], x.metadata['iodepth'], x.metadata['iteration']))
 
-        print_header(ctx)
 
         for test in tests:
             test.printTest()
 
             values = (test.hashid, dn, test.metadata['benchmark'], int(test.metadata['iteration']), 
                 test.clients, int(test.metadata['op_size']), test.metadata['mode'], int(test.metadata['rwmixread']), int(test.metadata['iodepth']), test.bw, test.iops, test.lat['avg'])
-            c = conn.cursor()
-            c.execute('INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', values)
-            conn.commit()
-        conn.close()
+            #c = conn.cursor()
+            #c.execute('INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', values)
+            #conn.commit()
+        #conn.close()
 
 
 
